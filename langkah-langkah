@@ -1,0 +1,111 @@
+ufw app list
+ufw allow OpenSSH
+ufw enable
+ufw status
+sudo add-apt-repository ppa:oisf/suricata-stable
+sudo apt install suricata
+sudo systemctl enable suricata.service
+sudo systemctl stop suricata.service
+sudo nano +136 /etc/suricata/suricata.yaml
+	# enable/disable the community id feature.
+      community-id: true
+ip -p -j route show default
+	[ {
+        "dst": "default",
+        "gateway": "192.168.18.1",
+        "dev": "enp0s3",
+        "protocol": "static",
+        "metric": 100,
+        "flags": [ ]
+    } ]
+sudo nano +615 /etc/suricata/suricata.yaml
+	af-packet:
+  - interface: eth0
+sudo nano /etc/suricata/suricata.yaml
+	detect-engine:
+     - rule-reload: true
+sudo suricata-update
+sudo suricata-update list-sources
+sudo suricata-update enable-source tgreen/hunting
+sudo suricata -T -c /etc/suricata/suricata.yaml -v
+sudo systemctl start suricata.service
+sudo systemctl status suricata.service
+sudo tail -f /var/log/suricata/suricata.log
+snap install curl
+curl http://testmynids.org/uid/index.html
+grep 2100498 /var/log/suricata/fast.log
+sudo apt install jq
+jq 'select(.alert .signature_id==2100498)' /var/log/suricata/eve.json
+sampe disini ok
+
+curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-7.x.list
+sudo apt update
+sudo apt install elasticsearch kibana
+ip -brief address show
+	lo               UNKNOWN        127.0.0.1/8 ::1/128
+	enp0s3           UP             192.168.18.200/24 fe80::a459:22ec:43fa:ed1e/64
+sudo nano +56 /etc/elasticsearch/elasticsearch.yml
+	network.bind_host: ["127.0.0.1", "your_private_ip"]
+	tambahkan baris paling bawah
+	discovery.type: single-node
+	xpack.security.enabled: true
+	xpack.security.authc.api_key.enabled: true
+sudo ufw allow in on enp0s3
+sudo ufw allow out on enp0s3
+sudo systemctl start elasticsearch.service
+cd /usr/share/elasticsearch/bin
+sudo ./elasticsearch-setup-passwords auto
+	Changed password for user apm_system
+	PASSWORD apm_system = urvsf4ADsEDIT5Ev66w3
+
+	Changed password for user kibana_system
+	PASSWORD kibana_system = Xn5AR8ngugRqK7wpvLb6
+
+	Changed password for user kibana
+	PASSWORD kibana = Xn5AR8ngugRqK7wpvLb6
+
+	Changed password for user logstash_system
+	PASSWORD logstash_system = eVUQbj2tFAGJRNSTL7Ny
+
+	Changed password for user beats_system
+	PASSWORD beats_system = sTczih4z2ce7k8XVNfrw
+
+	Changed password for user remote_monitoring_user
+	PASSWORD remote_monitoring_user = Gqkmp0lRwu1UBKpxjsMt
+
+	Changed password for user elastic
+	PASSWORD elastic = xofpK9ZtdA9Ka0KwIpl3
+cd /usr/share/kibana/bin/
+sudo ./kibana-encryption-keys generate -q
+	xpack.encryptedSavedObjects.encryptionKey: d863c542d7bb926d940eb976ad1ec122
+	xpack.reporting.encryptionKey: 03ef38db31f574a000d6ee435ebc727c
+	xpack.security.encryptionKey: 2ac62fc32ee6345b2e29dd69af9cb7a8
+sudo nano /etc/kibana/kibana.yml
+tambahkan xpack diatas
+sudo nano +7 /etc/kibana/kibana.yml
+	server.host: "your_private_ip"
+cd /usr/share/kibana/bin
+sudo ./kibana-keystore add elasticsearch.username
+	masukan ==> kibana_system
+sudo ./kibana-keystore add elasticsearch.password
+	masukan ==> Xn5AR8ngugRqK7wpvLb6
+sudo systemctl start kibana.service
+curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-7.x.list
+sudo apt update
+sudo apt install filebeat
+sudo nano +100 /etc/filebeat/filebeat.yml
+	host: "your_private_ip:5601"
+sudo nano +144 /etc/filebeat/filebeat.yml
+	#username: "elastic"
+	#password: "changeme"
+sudo filebeat modules enable suricata
+sudo filebeat setup
+sudo systemctl start filebeat.service
+==========================
+untuk menjalankan
+sudo systemctl start elasticsearch
+sudo systemctl enable elasticsearch
+sudo systemctl start kibana.service
+sudo filebeat modules enable suricata
