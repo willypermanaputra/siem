@@ -1,0 +1,181 @@
+siem 2000 ip 10.0.138.245
+langkah-langkah instalasi SIEM dengan Suricata dan Elastic Stack di Ubuntu 20.04
+
+jika mau membuat user
+adduser sammy
+usermod -aG sudo sammy
+
+basic firewall
+ufw app list
+ufw allow OpenSSH
+ufw enable
+ufw status
+
+Step 1 — Installing Suricata
+sudo add-apt-repository ppa:oisf/suricata-stable
+sudo apt install suricata --> pilih yes
+sudo systemctl enable suricata.service
+sudo systemctl stop suricata.service
+sudo nano +136 /etc/suricata/suricata.yaml
+	community-id: true
+ip -p -j route show default
+	[ {
+        "dst": "default",
+        "gateway": "10.0.138.1",
+        "dev": "ens18",
+        "protocol": "static",
+        "flags": [ ]
+    } ]
+sudo nano +621 /etc/suricata/suricata.yaml
+	- interface: ens18
+sudo nano /etc/suricata/suricata.yaml
+	detect-engine:
+	 - rule-reload: true
+sudo suricata-update
+sudo suricata-update list-sources
+sudo suricata-update enable-source tgreen/hunting
+sudo suricata-update update-sources
+sudo suricata -T -c /etc/suricata/suricata.yaml -v
+sudo systemctl start suricata.service
+sudo systemctl status suricata.service
+sudo tail -f /var/log/suricata/suricata.log
+curl http://testmynids.org/uid/index.html
+grep 2100498 /var/log/suricata/fast.log
+sudo apt install jq
+jq 'select(.alert .signature_id==2100498)' /var/log/suricata/eve.json
+
+Step 1 — Installing Elasticsearch and Kibana
+curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-7.x.list
+sudo apt update
+sudo apt install elasticsearch kibana
+ip -brief address show
+	lo               UNKNOWN        127.0.0.1/8 ::1/128
+	ens18            UP             10.0.138.245/24 fe80::ecc0:1cff:feff:b500/64
+	ztosieka7n       UNKNOWN        192.168.192.136/24 fe80::a81f:c6ff:fe17:5aa9/64
+sudo nano +56 /etc/elasticsearch/elasticsearch.yml
+	network.bind_host: ["127.0.0.1", "10.0.138.245"]
+	tambahkan baris paling bawah
+	discovery.type: single-node
+	xpack.security.enabled: true
+	xpack.security.authc.api_key.enabled: true
+sudo ufw allow in on ens18
+sudo ufw allow out on ens18
+cd /usr/share/elasticsearch/bin
+sudo ./elasticsearch-setup-passwords auto
+	Changed password for user apm_system
+	PASSWORD apm_system = BjQu1VYx5i9PUTY4ZU8w
+
+	Changed password for user kibana_system
+	PASSWORD kibana_system = qd0z5yLsx8pTqIcFi1HD
+
+	Changed password for user kibana
+	PASSWORD kibana = qd0z5yLsx8pTqIcFi1HD
+
+	Changed password for user logstash_system
+	PASSWORD logstash_system = vDoWpqJx1eqfzLtZbKnn
+
+	Changed password for user beats_system
+	PASSWORD beats_system = t9viWmJ7Jk0N6agtZkHX
+
+	Changed password for user remote_monitoring_user
+	PASSWORD remote_monitoring_user = wNMoJGngjqcVEIBLsGHq
+
+	Changed password for user elastic
+	PASSWORD elastic = XEryngsHWnoNULFPCevy
+
+cd /usr/share/kibana/bin/
+sudo ./kibana-encryption-keys generate -q
+	xpack.encryptedSavedObjects.encryptionKey: 7b046c6cec9d7c3366fe9ee2cf0f0071
+	xpack.reporting.encryptionKey: 64bda04d01a20274bf35e0bd37b689b8
+	xpack.security.encryptionKey: dbc46ae6f3def55671c551a76ed788b2
+
+sudo nano /etc/kibana/kibana.yml
+	letakan paling bawah
+	xpack.encryptedSavedObjects.encryptionKey: 7b046c6cec9d7c3366fe9ee2cf0f0071
+	xpack.reporting.encryptionKey: 64bda04d01a20274bf35e0bd37b689b8
+	xpack.security.encryptionKey: dbc46ae6f3def55671c551a76ed788b2
+
+sudo nano +7 /etc/kibana/kibana.yml
+	server.host: "10.0.138.245"
+
+cd /usr/share/kibana/bin
+sudo ./kibana-keystore add elasticsearch.username
+	masukan ==> kibana_system
+sudo ./kibana-keystore add elasticsearch.password
+	masukan ==> qd0z5yLsx8pTqIcFi1HD
+sudo systemctl start kibana.service
+
+curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-7.x.list
+sudo apt update
+sudo apt install filebeat
+sudo nano +111 /etc/filebeat/filebeat.yml
+	host: "10.0.138.245:5601"
+sudo nano +137 /etc/filebeat/filebeat.yml
+	hosts: ["10.0.138.245:9200"]
+	tambahkan bawahnya 
+	username: "elastic"
+	password: "XEryngsHWnoNULFPCevy"
+
+sudo filebeat modules enable suricata
+sudo systemctl start filebeat.service
+sudo systemctl start elasticsearch
+sudo systemctl enable elasticsearch
+sudo systemctl start kibana.service
+sudo filebeat setup
+================
+install
+Suricata Events
+Elastic Agent
+Apache HTTP Server
+Kibana
+Logstash
+==============================
+agent 
+sudo service elastic-agent start
+=================================
+untuk monitoring 
+curl -L -O https://artifacts.elastic.co/downloads/beats/metricbeat/metricbeat-7.17.22-amd64.deb
+sudo dpkg -i metricbeat-7.17.22-amd64.deb
+sudo nano +17 /etc/metricbeat/metricbeat.yml
+	reload.enabled: true
+	cari =
+	output.elasticsearch:
+	hosts: ["10.0.138.245:9200"]
+	username: "elastic"
+	password: "XEryngsHWnoNULFPCevy"
+	cari =
+	setup.kibana:
+    host: "10.0.138.245:5601" 
+    username: "kibana"  
+    password: "qd0z5yLsx8pTqIcFi1HD"
+metricbeat modules list
+metricbeat modules enable
+metricbeat setup -e
+sudo service metricbeat start
+sudo systemctl enable metricbeat
+metricbeat modules enable elasticsearch-xpack
+nano /etc/metricbeat/modules.d/elasticsearch-xpack.yml
+	- module: elasticsearch
+	xpack.enabled: true
+	period: 10s
+	hosts: ["http://10.0.138.245:9200"]
+	username: "elastic"
+	password: "XEryngsHWnoNULFPCevy"
+sudo service metricbeat start
+======================
+metricbeat modules enable kibana-xpack
+nano /etc/metricbeat/modules.d/kibana-xpack.yml
+	- module: kibana
+	xpack.enabled: true
+	period: 10s
+	hosts: ["10.0.138.245:5601"]
+	#basepath: ""
+	username: "kibana"
+	password: "qd0z5yLsx8pTqIcFi1HD"
+==========================================
+metricbeat modules enable logstash-xpack
+nano /etc/metricbeat/modules.d/logstash-xpack.yml
+
+ssh -L 5601:10.0.138.245:5601 siem@10.0.138.245 -N
